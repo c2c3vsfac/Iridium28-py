@@ -150,8 +150,8 @@ def parse(byte_str, proto_name, *args):
                 if encoding_rules[data_id] == "bool":
                     data = bool(data)
                 elif encoding_rules[data_id] in need_import:
-                    proto_name = file_path + "\proto\\" + encoding_rules[data_id] + ".proto"
-                    enum_dict = read_proto(proto_name)[1]
+                    enum_proto_name = file_path + "\proto\\" + encoding_rules[data_id] + ".proto"
+                    enum_dict = read_proto(enum_proto_name)[1]
                     data = enum_dict[data]
 
                 decode_data[prop_name[data_id]] = data
@@ -200,29 +200,31 @@ def parse(byte_str, proto_name, *args):
                     type_dict[2] = type2
                     map_private_prop_name[1] = "first"
                     map_private_prop_name[2] = "second"
-                    proto_name = os.path.basename(proto_name).split(".")[0]
-                    data = parse(byte_str[i:i + length], proto_name, type_dict, map_private_prop_name)
+                    map_proto_name = os.path.basename(proto_name).split(".")[0]
+                    data = parse(byte_str[i:i + length], map_proto_name, type_dict, map_private_prop_name)
                     decode_data[prop_name[data_id]].append({data["first"]: data["second"]})
                 elif encoding_rules[data_id].startswith("repeated_"):
                     rule = {}
                     repeated_name = {}
                     data_type = re.sub("repeated_", "", encoding_rules[data_id])
                     if data_type in need_import:
-                        proto_name = data_type
-                        data = parse(byte_str[i: i + length], proto_name)
+                        repeated_proto_name = data_type
+                        data = parse(byte_str[i: i + length], repeated_proto_name)
                     else:
                         rule[1] = data_type
                         repeated_name[1] = "1"
-                        proto_name = os.path.basename(proto_name).split(".")[0]
-                        data = parse(byte_str[i: i + length], proto_name, rule, repeated_name, 1)
-                    decode_data[prop_name[data_id]] = data
+                        repeated_proto_name = os.path.basename(proto_name).split(".")[0]
+                        data = parse(byte_str[i: i + length], repeated_proto_name, rule, repeated_name, 1)
+                    if not prop_name[data_id] in decode_data:
+                        decode_data[prop_name[data_id]] = []
+                    decode_data[prop_name[data_id]].append(data)
                 elif encoding_rules[data_id] in need_import:
                     decode_data[prop_name[data_id]] = []
                     decode_data[prop_name[data_id]].append(parse(byte_str[i: i + length], encoding_rules[data_id]))
                 elif encoding_rules[data_id] in other_message:
                     decode_data[prop_name[data_id]] = []
-                    proto_name = os.path.basename(proto_name).split(".")[0]
-                    decode_data[prop_name[data_id]].append(parse(byte_str[i: i + length], proto_name,
+                    other_message_proto_name = os.path.basename(proto_name).split(".")[0]
+                    decode_data[prop_name[data_id]].append(parse(byte_str[i: i + length], other_message_proto_name,
                                                                  other_message[encoding_rules[data_id]][0],
                                                                  other_message[encoding_rules[data_id]][1]))
                 i += length
@@ -230,32 +232,9 @@ def parse(byte_str, proto_name, *args):
                 print("protobuf该处字节解析失败：" + str(i))
             if len(args) == 3:
                 list_decode_data["1"].append(decode_data["1"])
-        else:
-            return decode_data
+        # else:
+        #     return decode_data
     if len(args) == 3:
         decode_data = list_decode_data["1"]
     return decode_data
 
-# b_data = b'\x89\xab\xc2\xb6\xcd\x05\x96@\xc2\x0cR"\xcfa\xa8\x9a\x10\xf1\xc6{\x90\x10\xc9\x0f\xd3\x94\x9c\nr\x8cse\xa4\xf6\xb4\xed\xfbC@\x8a\xf3\xb6\xe2\xfe\xf1{\xfc\x0fVq\x8ct"\xea&*\x9d\xff/\x1c\xd5\x94O\xa0\x06\xee\xae\xd7\t\x8f\xd5l\xc2\x0c\x81O\x99\xa5\x8a\xb8_?x+\xb2@\xae\x05\xd1\xb9Z J\xb5\x96\x1e\xd8\xfa\x85\x14\xf4Y\x9a\xcb\x8dUZV\xc8\xa1\xf1}\xb1q\xe4A\xe5\x01pE\xa6u\xb3\xe4l\x04\x19\xc3\x1c2\xdf\xf4e\x1f5v\x08\xa5\xd0\x86%i\xe7?\xb7\xe8R\xe5;1\r-y\x7f\xeaD\x15\x85\x9c\xff\xfd\x96&\xfc;\xce'
-#
-# for i in range(len(b_data)):
-#     try:
-#         print(parse(b_data[i:], "GetAreaExplorePointReq"))
-#         print(i)
-#         input()
-#     except Exception:
-#         pass
-
-
-# b_data = b'r\x07\x08\x97\xe8\xbcW\x10%\x89\xab\xba\xa2\xe4\xd5\xbe}\x85\xd6\xfa\xd0q\xfep\x85;\xd5\x17IW\xef\xd8\x12\xd3\xa0\xb9\x12\x84g\x8f\xedG\t!\xd8\x85\xfa\x06\xba\x94\x9a\xb4\xc6V\x9e5A\x18\xd1?M\x9b\x1eIq\xc3,\xec\x8d\xc1}\xba\x82\x1b\x8d\xd0gZ\xaeb\x94p(\x9b\xe8\xcb \xef\xaa\x1e\x89\x812(\x96\xd42\xb3\xdcn\xba\xb0\xb5a"_.>\xbfe\xd5\xa6\xf7\xc2C\xb9\xfa\xe5K\xb1m\xac\xffoK\xb8\xc4[\xeb\xe7\x184\x87k\xf0\x8a\x93\x7f\xe5\xe3\x8f\xb1-'
-# b_data = b"\x97\xe8\xbcW("
-# # data_type = b_data[0] & 0b111
-# data, offset = varint(0, b_data)
-# print(data)
-# data_id >>= 3
-# print(data_id, data_type, offset)
-# print(varint(0, b"\x04\x70"))
-# data, offset = varint(1, b_data)
-# print(data, offset)
-
-# print(parse(b_data, "WorldPlayerRTTNotify"))

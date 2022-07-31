@@ -35,6 +35,7 @@ def get_packet_id(b_data):
 def read_packet_id():
     f = open("packet_id.json", "r")
     d_packet_id = json.load(f)
+    f.close()
     return d_packet_id
 
 
@@ -138,11 +139,19 @@ def parse(decrypt_key):
             i += 1
             b_data = xor(b_data, decrypt_key)
             packet_id = get_packet_id(b_data)
-            proto_name = get_proto_name_by_id(packet_id)
-            b_data = remove_magic(b_data)
-            if proto_name:
-                data = pp.parse(b_data, proto_name)
-                print(proto_name, data)
+            if packet_id in save_packet:
+                proto_name = get_proto_name_by_id(packet_id)
+                f = open(str(proto_name) + ".txt", "wb")
+                f.write(b_data)
+                f.close()
+            if packet_id in skip_packet_in_parse:
+                continue
+            else:
+                proto_name = get_proto_name_by_id(packet_id)
+                b_data = remove_magic(b_data)
+                if proto_name:
+                    data = pp.parse(b_data, proto_name)
+                    print(proto_name, data)
 
 
 def handle_kcp(id_key):
@@ -226,16 +235,25 @@ def handle_kcp(id_key):
 def read_windseed():
     f = open("plaintext.bin", "rb")
     b_windseed = f.read()
+    f.close()
     return b_windseed
 
 
+def read_config():
+    f = open("config.json", "r")
+    return json.load(f)
+
+
+config = read_config()
 windseed_text = read_windseed()
 d_pkt_id = read_packet_id()
 sniff_datas = []
 packet = []
 skip_packet = []
 kcp = {}
-dev = "NPF_{46BA0BF2-6168-45EA-9476-F42ECD5D0EE5}"  # 自行修改
+dev = config["device_name"]
+skip_packet_in_parse = config["skip_packet_id"]
+save_packet = config["save_packet_id"]
 pkg_filter = "udp and port 22102 or port 22101"
 lock = threading.Lock()
 pcap = pcapy.open_live(dev, 1500, 0, 0)
