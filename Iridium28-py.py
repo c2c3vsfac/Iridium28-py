@@ -98,10 +98,6 @@ def find_key():
                         continue
 
                 if len(b_data) > 20:
-                        # offset2 = int.from_bytes(xor(windseed_encrypt[6:7], length_key[2:3]), byteorder="big", signed=False)
-                        # pkg_parser = threading.Thread(target=parse, args=(full_key,))
-                        # pkg_parser.start()
-                        # break
                     if not have_got_id_key:
                         b_data = b_data[28:]
                         if b_data.startswith(b"$\x8f") or b_data.startswith(head):
@@ -150,7 +146,7 @@ def parse(decrypt_key):
                 proto_name = get_proto_name_by_id(packet_id)
                 b_data = remove_magic(b_data)
                 if proto_name:
-                    data = pp.parse(b_data, proto_name)
+                    data = pp.parse(b_data, str(packet_id))
                     print(proto_name, data)
 
 
