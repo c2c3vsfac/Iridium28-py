@@ -1,4 +1,8 @@
 # Iridium28-py
 an package sniffer for an anime game,rewrite in python
 
-parse耗时太长，看来得学Google整个序列化器出来。
+果然是IO的问题啊。
+
+下载，pip install pcapy，运行，完成。
+
+download， pip install pcapy, run, ok.
