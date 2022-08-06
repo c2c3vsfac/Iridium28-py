@@ -1,3 +1,4 @@
+import base64
 import threading
 import pcapy
 import json
@@ -56,7 +57,6 @@ def find_key():
     i = 0
     head = ""
     have_got_id_key = False
-    # have_got_length_key = False
     have_got_data_key = False
     d_windseed = {}
     encrypted_windseed = b""
@@ -68,7 +68,6 @@ def find_key():
             if have_got_data_key and have_got_id_key:
                 frg = b_data[9]
                 sn = int.from_bytes(b_data[16:20], byteorder="little", signed=False)
-                una = int.from_bytes(b_data[20:24], byteorder="little", signed=False)
                 if frg + sn == first_frg + first_sn:
                     if frg not in d_windseed:
                         d_windseed[frg] = b_data[28:]
@@ -96,7 +95,6 @@ def find_key():
                         head = b_data[:2]
                     else:
                         continue
-
                 if len(b_data) > 20:
                     if not have_got_id_key:
                         b_data = b_data[28:]
@@ -107,7 +105,6 @@ def find_key():
                             if id_key:
                                 have_got_id_key = True
                     else:
-                        # if len(b_data) > 4 and not b_data.startswith(head):
                         packet_id = xor(b_data[28:32], id_key)
                         if packet_id == b"\x45\x67\x04\xaf":
                             first_frg = b_data[9]
@@ -145,8 +142,14 @@ def parse(decrypt_key):
                 proto_name = get_proto_name_by_id(packet_id)
                 b_data = remove_magic(b_data)
                 if proto_name:
-                    data = pp.parse(b_data, str(packet_id))
-                    print(proto_name, data)
+                    if packet_id == 5:  # UnionCmdNotify
+                        data = pp.parse(b_data, str(packet_id))
+                        for union_data in data["cmd_list"]:
+                            each_data = pp.parse(base64.b64decode(union_data["body"]), str(union_data["message_id"]))
+                            print(each_data)
+                    else:
+                        data = pp.parse(b_data, str(packet_id))
+                        print(proto_name, data)
 
 
 def handle_kcp(id_key):
