@@ -61,7 +61,7 @@ def find_key():
     d_windseed = {}
     encrypted_windseed = b""
     while True:
-        if i < len(sniff_datas) - 1:
+        if i <= len(sniff_datas) - 1:
             b_data = sniff_datas[i]
             b_data = b_data[42:]
             i += 1
@@ -69,7 +69,7 @@ def find_key():
                 frg = b_data[9]
                 sn = int.from_bytes(b_data[16:20], byteorder="little", signed=False)
                 una = int.from_bytes(b_data[20:24], byteorder="little", signed=False)
-                if frg + sn == first_frg + first_sn and una == first_una:
+                if frg + sn == first_frg + first_sn:
                     if frg not in d_windseed:
                         d_windseed[frg] = b_data[28:]
                     else:
@@ -112,7 +112,6 @@ def find_key():
                         if packet_id == b"\x45\x67\x04\xaf":
                             first_frg = b_data[9]
                             first_sn = int.from_bytes(b_data[16:20], byteorder="little", signed=False)
-                            first_una = int.from_bytes(b_data[20:24], byteorder="little", signed=False)
                             have_got_data_key = True
                             d_windseed[first_frg] = b_data[28:]
 
@@ -120,10 +119,10 @@ def find_key():
 def parse(decrypt_key):
     i = 0
     while True:
-        if i < len(packet) - 1:
+        if i <= len(packet) - 1:
             get = False
             try:
-                if i > 50:
+                if i >= 50:
                     get = lock.acquire()
                     for j in range(50):
                         packet.pop(0)
@@ -153,10 +152,10 @@ def parse(decrypt_key):
 def handle_kcp(id_key):
     i = 6
     while True:
-        if i < len(sniff_datas) - 1:
+        if i <= len(sniff_datas) - 1:
             get = False
             try:
-                if i > 100:
+                if i >= 100:
                     get = lock.acquire()
                     for j in range(100):
                         sniff_datas.pop(0)
@@ -175,56 +174,42 @@ def handle_kcp(id_key):
                     continue
                 else:
                     head = xor(data[28:32], id_key)
-                    if head.startswith(b"\x45\x67") and data[9] == 0:
-                        packet.append(data[28:28 + length])
+                    frg = data[9]
+                    sn = int.from_bytes(data[16:20], byteorder="little", signed=False)
+                    if frg + sn in skip_packet:
                         skip = True
                     else:
-                        frg = data[9]
-                        sn = int.from_bytes(data[16:20], byteorder="little", signed=False)
-                        una = int.from_bytes(data[20:24], byteorder="little", signed=False)
-                        if (una, frg + sn) in skip_packet:
+                        if head.startswith(b"\x45\x67") and frg == 0:
+                            packet.append(data[28:28 + length])
+                            skip_packet.append(sn)
                             skip = True
                         else:
                             skip = False
                             if head.startswith(b"\x45\x67"):
-                                if una not in kcp:
-                                    kcp[una] = {}
-                                kcp[una][sn + frg] = {frg: data[28: 28 + length]}
-                                # {3:{245:{36:data}}, 284:{:}}}
+                                kcp[sn + frg] = {frg: data[28: 28 + length]}
+                                # {245:{36:data}}, 284:{:}}
                             else:
-                                # 啥玩意，中途换una
                                 try:
-                                    if frg in kcp[una][sn + frg]:
+                                    if frg in kcp[sn + frg]:
                                         skip = True
                                     else:
-                                        kcp[una][sn + frg][frg] = data[28: 28 + length]
+                                        kcp[sn + frg][frg] = data[28: 28 + length]
                                 except KeyError:
-                                    try:
-                                        if frg in kcp[una - 1][sn + frg]:
-                                            skip = True
-                                        else:
-                                            kcp[una - 1][sn + frg][frg] = data[28: 28 + length]
-                                    except KeyError:
-                                        skip = True
+                                    skip = True
                     offset = length + 28
                     data = data[offset:]
             if not skip:
-                remove = False
                 for key1, value1 in kcp.items():
-                    for key2, value2 in value1.items():
-                        frgs = list(value2.keys())
-                        if len(frgs) == frgs[0] + 1:
-                            sorted_dict = sorted(value2.items(), key=lambda x: x[0], reverse=True)
-                            t_data = list(zip(*sorted_dict))[1]
-                            b_data = b""
-                            for frg_data in t_data:
-                                b_data += frg_data
-                            packet.append(b_data)
-                            skip_packet.append((key1, key2))
-                            del kcp[key1][key2]
-                            remove = True
-                            break
-                    if remove:
+                    frgs = list(value1.keys())
+                    if len(frgs) == frgs[0] + 1:
+                        sorted_dict = sorted(value1.items(), key=lambda x: x[0], reverse=True)
+                        t_data = list(zip(*sorted_dict))[1]
+                        b_data = b""
+                        for frg_data in t_data:
+                            b_data += frg_data
+                        packet.append(b_data)
+                        skip_packet.append(key1)
+                        del kcp[key1]
                         break
 
 
