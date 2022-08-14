@@ -3,6 +3,7 @@ import threading
 import pcapy
 import json
 import parse_proto as pp
+import time
 
 
 def package_handle(hdr, data):
@@ -115,6 +116,7 @@ def find_key():
 
 def parse(decrypt_key):
     i = 0
+    f_decrypt_data = open(now_time + ".txt", "w")
     while True:
         if i <= len(packet) - 1:
             get = False
@@ -142,14 +144,36 @@ def parse(decrypt_key):
                 proto_name = get_proto_name_by_id(packet_id)
                 b_data = remove_magic(b_data)
                 if proto_name:
-                    if packet_id == 5:  # UnionCmdNotify
+                    if packet_id == 5:  # UnionCmdNotify(未完成)
                         data = pp.parse(b_data, str(packet_id))
                         for union_data in data["cmd_list"]:
                             each_data = pp.parse(base64.b64decode(union_data["body"]), str(union_data["message_id"]))
-                            print(each_data)
+                            if 'invokes' in each_data:
+                                if 'argument_type' in each_data["invokes"][0]:
+                                    argument_type = each_data["invokes"][0]['argument_type']
+                                    if argument_type in union_cmd:
+                                        if 'ability_data' in each_data["invokes"][0]:
+                                            each_data["invokes"][0]['ability_data'] = pp.parse(base64.b64decode(each_data["invokes"][0]['ability_data']), union_cmd[argument_type])
+                                        # print(proto_name, each_data)
+                                        f_decrypt_data.write(str(proto_name) + " " + str(each_data) + "\n")
+                                    else:
+                                        f_decrypt_data.write(str(argument_type) + " " + str(each_data["invokes"][0]['ability_data']) + "\n")
+                                        # print(argument_type, each_data["invokes"][0]['ability_data'])
+                                    # print(each_data["invokes"][0]['argument_type'])
+                            elif 'invoke_list' in each_data:
+                                if 'argument_type' in each_data["invoke_list"][0]:
+                                    argument_type = each_data["invoke_list"][0]['argument_type']
+                                    if argument_type in union_cmd:
+                                        each_data["invoke_list"][0]['combat_data'] = pp.parse(base64.b64decode(each_data["invoke_list"][0]['combat_data']), union_cmd[argument_type])
+                                        # print(proto_name, each_data)
+                                        f_decrypt_data.write(str(proto_name) + " " + str(each_data) + "\n")
+                                    else:
+                                        f_decrypt_data.write(str(argument_type) + " " + str(each_data["invoke_list"][0]['combat_data']) + "\n")
+                                        # print(argument_type, each_data["invoke_list"][0]['combat_data'])
                     else:
                         data = pp.parse(b_data, str(packet_id))
-                        print(proto_name, data)
+                        f_decrypt_data.write(str(proto_name) + " " + str(data) + "\n")
+                        # print(proto_name, data)
 
 
 def handle_kcp(id_key):
@@ -228,8 +252,14 @@ def read_config():
     return json.load(f)
 
 
+def read_union_cmd():
+    f = open("union_cmd.json", "r")
+    return json.load(f)
+
+
 config = read_config()
 windseed_text = read_windseed()
+union_cmd = read_union_cmd()
 d_pkt_id = read_packet_id()
 sniff_datas = []
 packet = []
@@ -242,6 +272,7 @@ pkg_filter = "udp and port 22102 or port 22101"
 lock = threading.Lock()
 pcap = pcapy.open_live(dev, 1500, 0, 0)
 pcap.setfilter(pkg_filter)
+now_time = time.strftime("%Y%m%d%H%M%S")
 sniffer = threading.Thread(target=sniff)
 key_finder = threading.Thread(target=find_key)
 sniffer.start()
